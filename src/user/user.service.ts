@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entity/user.entity';
+import { Role } from './enum/role.enum';
 
 @Injectable()
 export class UserService {
@@ -16,10 +17,18 @@ export class UserService {
   }
 
   async create(email: string, password: string) {
-    return 'create user';
+    const user = this.userRepository.create({ email, password });
+    await this.userRepository.save(user);
+    return user;
   }
 
   async findOneByEmail(email: string) {
-    return 'find user by email';
+    const user = await this.userRepository.findOneBy({ email });
+    return user;
+  }
+
+  async checkAdminUser(userId: string) {
+    const user = await this.userRepository.findOneBy({ id: userId });
+    return user.role === Role.Admin;
   }
 }
