@@ -1,3 +1,4 @@
+import { SentryInterceptor } from './common/intercepters/sentry.interceptor';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerCustomOptions, SwaggerModule } from '@nestjs/swagger';
@@ -7,6 +8,7 @@ import * as winston from 'winston';
 import { TransformInterceptor } from './common/intercepters/transform.interceptor';
 import * as basicAuth from 'express-basic-auth';
 import { ConfigService } from '@nestjs/config';
+import * as Sentry from '@sentry/node';
 
 async function bootstrap() {
   const port = 3000;
@@ -62,7 +64,8 @@ async function bootstrap() {
     }),
   );
 
-  app.useGlobalInterceptors(new TransformInterceptor());
+  Sentry.init({ dsn: configService.get('sentry.dsn') });
+  app.useGlobalInterceptors(new SentryInterceptor(), new TransformInterceptor());
 
   await app.listen(port);
   Logger.log(`listening on port ${port}`);
