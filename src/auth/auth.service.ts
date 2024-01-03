@@ -4,9 +4,10 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserService } from 'src/user/user.service';
 import { hash, compare } from 'bcrypt';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Refresh } from './entity/refresh.entity';
+import { User } from 'src/user/entity/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -14,6 +15,7 @@ export class AuthService {
     private userService: UserService,
     private readonly jwtService: JwtService,
     @InjectRepository(Refresh) private readonly refreshRepository: Repository<Refresh>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
@@ -21,17 +23,35 @@ export class AuthService {
   }
 
   async signup(email: string, password: string) {
-    const user = await this.userService.findOneByEmail(email);
-    if (user) throw new ConflictException('이미 존재하는 이메일주소입니다');
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    let error = null;
 
-    const salt = 10;
-    const hashPassword = await hash(password, salt);
-    const newUser = await this.userService.create(email, hashPassword);
+    try {
+      const user = await this.userService.findOneByEmail(email);
+      if (user) throw new ConflictException('이미 존재하는 이메일주소입니다');
 
-    const accessToken = await this.generateAccessToken(newUser.id);
-    const refreshToken = await this.generateRefreshToken(newUser.id);
+      const salt = 10;
+      const hashPassword = await hash(password, salt);
+      const userEntity = queryRunner.manager.create(User, { email, password: hashPassword });
+      await queryRunner.manager.save(userEntity);
 
-    return { id: newUser.id, accessToken, refreshToken };
+      const accessToken = await this.generateAccessToken(userEntity.id);
+      const refreshToken = await this.generateRefreshToken(userEntity.id);
+      const refreshEntity = queryRunner.manager.create(Refresh, { user: { id: userEntity.id }, token: refreshToken });
+      await queryRunner.manager.save(refreshEntity);
+
+      await queryRunner.commitTransaction();
+
+      return { id: refreshEntity.id, accessToken, refreshToken };
+    } catch (e) {
+      await queryRunner.rollbackTransaction();
+      error = e;
+    } finally {
+      await queryRunner.release();
+      if (error) throw error;
+    }
   }
 
   async signin(email: string, password: string) {
