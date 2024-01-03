@@ -10,12 +10,20 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import postgresConfig from './config/postgres.config';
 import jwtConfig from './config/jwt.config';
 import { LoggerMiddleware } from './middleware/logger.middleware';
+import swaggerConfig from './config/swagger.config';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
   imports: [
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 10,
+      },
+    ]),
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [postgresConfig, jwtConfig],
+      load: [postgresConfig, jwtConfig, swaggerConfig],
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],

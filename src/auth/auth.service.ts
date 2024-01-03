@@ -19,7 +19,13 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
-    return null;
+    const user = await this.userService.findOneByEmail(email);
+    if (!user) new UnauthorizedException('이메일을 찾을 수 없습니다');
+
+    const isMatch = await compare(password, user.password);
+    if (!isMatch) throw new UnauthorizedException('비밀번호 불일치');
+
+    return user;
   }
 
   async signup(email: string, password: string) {
@@ -55,11 +61,7 @@ export class AuthService {
   }
 
   async signin(email: string, password: string) {
-    const user = await this.userService.findOneByEmail(email);
-    if (!user) new UnauthorizedException('이메일을 찾을 수 없습니다');
-
-    const isMatch = await compare(password, user.password);
-    if (!isMatch) throw new UnauthorizedException('비밀번호 불일치');
+    const user = await this.validateUser(email, password);
 
     const accessToken = await this.generateAccessToken(user.id);
     const refreshToken = await this.generateRefreshToken(user.id);
