@@ -11,19 +11,29 @@ import { Role } from 'src/user/enum/role.enum';
 import { ThrottlerBehindProxy } from 'src/common/guard/throttler-behind-proxy.guard';
 import { PageReqDto } from 'src/common/dto/req.dto';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
+import { User, UserAfterAuth } from 'src/common/decorators/user.decorator';
+import { CreateVideoCommand } from './command/create-video.command';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
+import { FindVideosQuery } from './query/find-videos.query';
 
 @ApiTags('Video')
 @ApiExtraModels(PageReqDto, FindVideoResDto, FindVideoReqDto, CreateVideoResDto)
 @UseGuards(ThrottlerBehindProxy)
 @Controller('api/videos')
 export class VideoController {
-  constructor(private readonly videoService: VideoService) {}
+  constructor(
+    private readonly videoService: VideoService,
+    private readonly commandBus: CommandBus,
+    private readonly queryBus: QueryBus,
+  ) {}
 
   @ApiPostResponse(CreateVideoResDto)
   @ApiBearerAuth()
   @Post()
-  upload(@Body() { title, video }: CreateVideoReqDto) {
-    return this.videoService.create();
+  async upload(@Body() { title, video }: CreateVideoReqDto, @User() user: UserAfterAuth): Promise<CreateVideoResDto> {
+    const command = new CreateVideoCommand(user.id, title, 'video/mp4', 'mp4', Buffer.from(''));
+    const { id } = await this.commandBus.execute(command);
+    return { id, title };
   }
 
   @ApiGetItemsResponse(FindVideoResDto)
@@ -31,8 +41,17 @@ export class VideoController {
   @Roles(Role.Admin)
   @SkipThrottle()
   @Get()
-  findAll(@Query() { page, size }: PageReqDto) {
-    return this.videoService.findAll();
+  async findAll(@Query() { page, size }: PageReqDto): Promise<FindVideoResDto[]> {
+    const query = new FindVideosQuery(page, size);
+    const videos = await this.queryBus.execute(query);
+    return videos.map(({ id, title, user }) => ({
+      id,
+      title,
+      user: {
+        id: user.id,
+        email: user.email,
+      }
+    }))
   }
 
   @ApiGetResponse(FindVideoResDto)

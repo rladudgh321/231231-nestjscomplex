@@ -3,6 +3,7 @@ import { IsEmail, IsUUID } from 'class-validator';
 
 export class CreateVideoResDto {
   @ApiProperty({ required: true })
+  @IsUUID()
   id: string;
 
   @ApiProperty({ required: true })
