@@ -36,4 +36,15 @@ export class VideoService {
 
     return { stream, mimetype, size };
   }
+
+  async findTop5Download() {
+    const videos = this.videoRepository.find({
+      relations: ['user'],
+      order: {
+        downloadCnt: 'DESC',
+      },
+      take: 5,
+    });
+    return videos;
+  }
 }
